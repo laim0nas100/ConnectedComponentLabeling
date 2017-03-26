@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 
@@ -46,7 +47,7 @@ public class OptimizedAPI {
         public HashSet<Pos> topPos;
         public HashSet<MiniComponent> bottom;
         public HashSet<MiniComponent> collected;
-        public HashSet<Pos> recentlyAdded;
+        public HashSet<MiniComponent> recentlyAdded;
         public boolean added = false;
         public HashSet<Pos> getConnectedBottomPos(){
             HashSet<Pos> pos = new HashSet<>();
@@ -94,7 +95,33 @@ public class OptimizedAPI {
             return get(pos.y,pos.x);
         }
     }
-    public static class UltimateWorker extends MiniShared implements Callable{
+    
+    public static abstract class DependableWorker extends MiniShared implements Callable{
+        public CountDownLatch latch;
+        public ArrayList<CountDownLatch> dependencies;
+        public DependableWorker(MiniComponent[][] array) {
+            super(array);
+            this.dependencies = new ArrayList<>();
+            this.latch = new CountDownLatch(1);
+        }
+        
+        public void waitForDependencies() throws InterruptedException{
+            for(CountDownLatch l:dependencies){
+                l.await();
+            }
+        }
+        public abstract void logic();
+        @Override
+        public final Object call() throws Exception {
+            waitForDependencies();
+            logic();
+            latch.countDown();
+            return null;
+        }
+        
+    
+}
+    public static class UltimateWorker extends DependableWorker{
         private final int workLine;
         public ArrayDeque<HashSet<MiniComponent>> iterated;
         public ArrayList<CompSet> compSet;
@@ -106,9 +133,8 @@ public class OptimizedAPI {
             
         }
 
-
         @Override
-        public Object call() throws Exception {
+        public void logic() {
             int index = 0;
             this.iterated.add(new HashSet<>());
             MiniComponent prev;
@@ -140,19 +166,20 @@ public class OptimizedAPI {
                 cset.collected.addAll(set);
                 compSet.add(cset);
             }
-            return null;
         }
         
     }
     
     
-    public static class WorkerMerger implements Callable{
-        public CountDownLatch latch;
-        public WorkerMerger depTop,depBot;
+    public static class WorkerMerger extends DependableWorker{
+        
+//        public WorkerMerger depTop,depBot;
         public UltimateWorker top,bot;
-        public WorkerMerger(UltimateWorker top, UltimateWorker bottom) {
-            this.top = top;
-            this.bot = bottom;
+
+        public WorkerMerger(MiniComponent[][] array,UltimateWorker topWork,UltimateWorker botWork) {
+            super(array);
+            top = topWork;
+            bot = botWork;
         }
         
         public <T> boolean hasSameElement(Collection<T> col1, Collection<T> col2){
@@ -160,30 +187,30 @@ public class OptimizedAPI {
                 return false;
             }
             if(col1.size()<col2.size()){
-                if (col1.stream().anyMatch((el) -> (col2.contains(el)))) {
-                    return true;
+                for(T el:col1){
+                    if(col2.contains(el)){
+                        return true;
+                    }
                 }
             }else{
-                if (col2.stream().anyMatch((el) -> (col1.contains(el)))) {
-                    return true;
-                } 
+                for(T el:col2){
+                    if(col1.contains(el)){
+                        return true;
+                    }
+                }
             }
             
             return false;
         }
         
-        public void waitForDependenciess() throws InterruptedException{
-            if(depTop!=null){
-                depTop.latch.await();
-            }
-            if(depBot!=null){
-                depBot.latch.await();
-            }
-        }
         
-        private void logic(){
+        @Override
+        public void logic(){
             ArrayList<CompSet> topSet = top.compSet;  
             ArrayList<CompSet> botSet = bot.compSet;
+            botSet.forEach(set ->{
+                set.added = false;
+            });
             int i =-1;
             int topLimit = topSet.size()-1;
             int botLimit = botSet.size()-1;
@@ -205,10 +232,11 @@ public class OptimizedAPI {
                     }
                 }
                 set.bottom.clear();
-                
+                set.recentlyAdded.clear();
                 for(CompSet matched:matchedSets){
                     set.bottom.addAll(matched.bottom);
                     set.collected.addAll(matched.collected);
+                    set.recentlyAdded.addAll(matched.collected);
                 }
                   
             }
@@ -218,6 +246,27 @@ public class OptimizedAPI {
                     topSet.add(bots);
                 }
             }
+            //merge sets
+            ArrayList<CompSet> newSets = new ArrayList<>();
+            while(!topSet.isEmpty()){
+                CompSet set = topSet.remove(0);
+                Iterator<CompSet> iterator = topSet.iterator();
+                while(iterator.hasNext()){
+                    CompSet other = iterator.next();
+                    if(hasSameElement(set.collected,other.collected)){
+                        set.topPos.addAll(other.topPos);
+                        set.bottom.addAll(other.bottom);
+                        set.collected.addAll(other.collected);
+                        iterator.remove();
+                    }
+                }
+                newSets.add(set);
+                
+            }
+            topSet.clear();
+            topSet.addAll(newSets);
+            
+//            System.out.println("Finished:"+id());
 //            System.out.println("SETS!!");
 //            topSet.forEach(set ->{
 //                System.out.println(set+"\n");
@@ -227,30 +276,16 @@ public class OptimizedAPI {
             
             
             
+            
+        }
 
-        }
-        @Override
-        public Object call() throws Exception {
-            waitForDependenciess();
-//            Thread.sleep(1000);
-            logic();
-            latch.countDown();
-            System.out.println("Finished:"+id());
-            return null;
-        }
         
         public String id(){
             return top.workLine+" "+bot.workLine;
         }
         @Override
         public String toString(){
-            String res = id() + " deps:\n";
-            if(depTop!=null){
-                res+="top:"+depTop.id();
-            }
-            if(depBot!=null){
-                res+= " bot:"+depBot.id();
-            }
+            String res = id();
             
             return res;
         }
@@ -262,47 +297,43 @@ public class OptimizedAPI {
         UltimateWorker firstWorker;
         ArrayList<UltimateWorker> workers = new ArrayList<>();
         ArrayList<WorkerMerger> mergers = new ArrayList<>();
+        HashMap<Integer,DependableWorker> dependables = new HashMap<>();
         for(int i = 0; i<shared.width; i++){
             UltimateWorker worker = new UltimateWorker(shared.comp,i);
             workers.add(worker);
-            
+            dependables.put(i, worker);
         }
         firstWorker = workers.get(0);
         int width = shared.width;
         int increment = 2;
-        HashMap<Integer,WorkerMerger> tempMerger = new HashMap<>();
+        
         do{
-            ArrayList<WorkerMerger> mergersThisTime = new ArrayList<>();
-            boolean setIsEmpty = tempMerger.isEmpty();
             int offset = increment/2;
+            int count = 0;
             for(int i=0; i+offset<width; i+= increment){
                 int top = i;
                 int bot = i + offset;
                 System.out.println(top+" "+(bot));
-                WorkerMerger merger = new WorkerMerger(workers.get(top),workers.get(bot));
-                mergersThisTime.add(merger);
-                merger.latch = new CountDownLatch(1);
-                if(setIsEmpty){
-                    tempMerger.put(top, merger);
-                }else{
-                    merger.depBot = tempMerger.remove(bot);
-                    merger.depTop = tempMerger.remove(top);
-                    tempMerger.put(top, merger);
-                }
-                
+                WorkerMerger merger = new WorkerMerger(shared.comp,workers.get(top),workers.get(bot));
+                merger.dependencies.add(dependables.remove(bot).latch);
+                merger.dependencies.add(dependables.remove(top).latch);
+                dependables.put(top, merger);
+                mergers.add(merger);
+                count++;
             }
             increment*=2;
-            mergers.addAll(mergersThisTime);
-            System.out.println("#### "+increment);
+            System.out.println("#### "+increment +" parallelization: "+count);
         }while(increment/2<width);
-        System.out.println();
-        mergers.forEach(merger ->{
-            System.out.println(merger);
-        });
-        start(workers);
-        join(workers);
-        start(mergers);
-        join(mergers);
+        
+        ArrayList<DependableWorker> all = new ArrayList<>();
+        all.addAll(workers);
+//        start(workers);
+//        join(workers);
+        all.addAll(mergers);
+        long time = System.currentTimeMillis();
+        start(all);
+        join(all);
+        time = System.currentTimeMillis() - time;
         firstWorker.compSet.forEach(set ->{
             final String label = getUnusedLabel();
             set.collected.forEach( comp ->{
@@ -310,19 +341,7 @@ public class OptimizedAPI {
             });
         });
         tableFunction(shared.comp,printLabel);
-//        list.forEach(worker ->{
-//            worker.iterated.forEach(set ->{
-//                System.out.print(set);
-//            });
-//            System.out.println();
-//        });
-//        workers.forEach(worker ->{
-//            System.out.println(worker.workLine+":");
-//            worker.compSet.forEach(set ->{
-//                System.out.println(set);
-//            });
-//            
-//        });
+        System.out.println("\n"+time);
         
     }
 }

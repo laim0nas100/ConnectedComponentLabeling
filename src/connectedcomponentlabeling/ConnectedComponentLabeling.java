@@ -35,7 +35,10 @@ import javax.imageio.ImageIO;
  * @author Lemmin
  */
 public class ConnectedComponentLabeling {
-    public static final int THREAD_COUNT = 10;
+    //1 24780
+    //2 22801
+    //3 24563
+    public static final int THREAD_COUNT = 4;
     public static boolean useThreads = false;
     public static ExecutorService pool;
     public static HashSet<String> set = new HashSet<>();
@@ -46,6 +49,7 @@ public class ConnectedComponentLabeling {
 //    public static volatile ArrayList<Store> connected = new ArrayList<>();
     
     public static String getUnusedLabel(){
+        
         charInt++;
         String valueOf = String.valueOf(Character.toChars(charInt));
         return valueOf;
@@ -58,7 +62,8 @@ public class ConnectedComponentLabeling {
 
         for (int x = 0; x < height ; x++) {
             for (int y = 0; y < width; y++) {
-                pixels[x][y] = (Integer) (image.getRGB(y, x) == 0xFFFFFFFF ? 0 : 1);
+                pixels[x][y] = (Integer) (image.getRGB(y, x));
+//                pixels[x][y] = (Integer) (image.getRGB(y, x) == 0xFFFFFFFF ? 0 : 1);
             }
         }
         return pixels;
@@ -399,7 +404,9 @@ public class ConnectedComponentLabeling {
         String home = "C:/Users/Lemmin/Desktop/";
         String pic = "";
         pic = "Picture2.bmp";
-        pic = "large.bmp";
+//        pic = "large.bmp";
+//        pic = "PictureStrat.png";
+        pic = "color.bmp";
         
         Integer[][] parsePicture = parsePicture(home+pic);
         length = parsePicture[0].length;
