@@ -8,33 +8,34 @@ package connectedcomponentlabeling;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.getUnusedLabel;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.join;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.start;
+import connectedcomponentlabeling.SimpleStrats.Shared;
+import connectedcomponentlabeling.SimpleStrats.Worker;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 
 /**
  *
  * @author Lemmin
  */
 public class PullerAPI {
-        public static boolean print = false;
-        public static class Store{
-        public static ArrayList<Store> connected = new ArrayList<>();
-        public HashSet<ConnectedComponentLabeling.Component> stored;
-        public HashSet<ConnectedComponentLabeling.Pos> compareTo;
-        public HashSet<ConnectedComponentLabeling.Pos> currentBottom;
-        public boolean firstPush;
-        public Store(){
-            firstPush = true;
-            stored = new HashSet<>();
-            compareTo = new HashSet<>();
-            currentBottom = new HashSet<>();
-        }
+    public static boolean print = false;
+    public static class Store{
+    public static ArrayList<Store> connected = new ArrayList<>();
+    public HashSet<ConnectedComponentLabeling.Component> stored;
+    public HashSet<ConnectedComponentLabeling.Pos> compareTo;
+    public HashSet<ConnectedComponentLabeling.Pos> currentBottom;
+    public boolean firstPush;
+    public Store(){
+        firstPush = true;
+        stored = new HashSet<>();
+        compareTo = new HashSet<>();
+        currentBottom = new HashSet<>();
     }
-    
-    public static class HorizontalPuller extends ConnectedComponentLabeling.Worker{
+}
+
+    public static class HorizontalPuller extends Worker{
         public int index;
         public HorizontalPuller top;
         public volatile CountDownLatch latch;
@@ -215,7 +216,7 @@ public class PullerAPI {
         }
         
     }
-     public static void advancedStrategy(ConnectedComponentLabeling.Shared shared) throws InterruptedException{
+    public static void advancedStrategy(Shared shared) throws InterruptedException{
         ArrayList<HorizontalPuller> pullers = new ArrayList<>(shared.width);
         HorizontalPuller current = new HorizontalPuller(shared.comp,0);
         pullers.add(current);

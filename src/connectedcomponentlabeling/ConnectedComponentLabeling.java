@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
@@ -42,28 +43,50 @@ public class ConnectedComponentLabeling {
     public static boolean useThreads = false;
     public static ExecutorService pool;
     public static HashSet<String> set = new HashSet<>();
-    public static Shared shared;
     public static int length,width;
     public static int charInt = 33;
-    public static AtomicInteger relabelCount = new AtomicInteger(0);
-//    public static volatile ArrayList<Store> connected = new ArrayList<>();
-    
+    public static final int CORE_COUNT = Runtime.getRuntime().availableProcessors();
+    public static MiniComponent[][] transpose(MiniComponent[][] array) throws InterruptedException{
+        System.out.println("Core count "+CORE_COUNT);
+        ExecutorService service = Executors.newFixedThreadPool(CORE_COUNT);
+        final int size = array[0].length;
+        final MiniComponent[][] result = new MiniComponent[size][array.length];
+        for(int i=0;i<array.length; i++){
+            final int index = i;
+            Runnable run = () ->{
+                for(int j=0; j<size; j++){
+                    result[j][index] = array[index][j];
+                }
+            };
+            service.submit(run);
+        }
+        service.shutdown();
+        service.awaitTermination(1, TimeUnit.DAYS);
+        
+        return result;
+        
+    }
     public static String getUnusedLabel(){
         
         charInt++;
         String valueOf = String.valueOf(Character.toChars(charInt));
         return valueOf;
     }
-    public static Integer[][] parsePicture(String path) throws IOException{
+    public static Integer[][] parsePicture(String path,boolean monochrome) throws IOException{
         BufferedImage image = ImageIO.read(new File(path));
-        int height = image.getHeight();
-        int width = image.getWidth();
-        Integer[][] pixels = new Integer[height][width];
+        int h = image.getHeight();
+        int w = image.getWidth();
+        Integer[][] pixels = new Integer[h][w];
 
-        for (int x = 0; x < height ; x++) {
-            for (int y = 0; y < width; y++) {
-                pixels[x][y] = (Integer) (image.getRGB(y, x));
-//                pixels[x][y] = (Integer) (image.getRGB(y, x) == 0xFFFFFFFF ? 0 : 1);
+        for (int x = 0; x < h ; x++) {
+            for (int y = 0; y < w; y++) {
+                if(!monochrome){
+                    pixels[x][y] = (Integer) (image.getRGB(y, x)); 
+                }else{
+                    pixels[x][y] = (Integer) (image.getRGB(y, x) == 0xFFFFFFFF ? 0 : 1);
+
+                }
+                
             }
         }
         return pixels;
@@ -182,102 +205,7 @@ public class ConnectedComponentLabeling {
     }
     
     
-    public static class Shared{
-        public Component[][] comp;
-        public final int length,width;
-        public Shared(Component[][] array){
-            this.comp = array;
-            this.width = array.length;
-            this.length = array[0].length;
-        }
-        protected Component get(int y, int x){
-            if(y<this.width && x<this.length){
-                return this.comp[y][x];
-            }else{
-                return null;
-            }
-        }
-        protected Component get(Pos pos){
-            if(pos == null){
-                return null;
-            }
-            return get(pos.y,pos.x);
-        }
-    }
-    public static abstract class Worker extends Shared implements Callable{
-        public final int constant;
-        public Worker(Component[][] array, int lineOrCol) {
-            super(array);
-            this.constant = lineOrCol;
-        }  
-    }   
-    public static abstract class Linker extends Worker{
-        protected int index;
-        public Linker(Component[][] array, int lineOrCol) {
-            super(array, lineOrCol);
-        }
-    }
- 
-    
-    public static class VerticalLinker extends Linker{
-        public VerticalLinker(Component[][] array, int col) {
-            super(array, col);
-        }
-        @Override
-        public Object call() throws Exception {
-            Component prev;
-            Component next = this.comp[index][this.constant];
-            index++;
-            while(index<this.width){
-                prev = next;
-                next = this.get(index, this.constant);
-                if(prev.id == next.id){
-                    prev.down = next.location;
-                    next.up = prev.location;
-                }
-                index++;
-            }
-            return null;
-        }
 
-    }
-    public static class HorizontalLinker extends Linker{
-        public HorizontalLinker(Component[][] array, int line) {
-            super(array, line);
-        }
-        @Override
-        public Object call() throws Exception {
-            Component prev;
-            Component next = this.comp[this.constant][this.index];
-            index++;
-            while(index<this.length){
-                prev = next;
-                next = this.get(this.constant, index);
-                if(prev.id == next.id){
-                    prev.right = next.location;
-                    next.left = prev.location;
-                }
-                index++;
-            }
-            return null;
-        }
-
-    }
-    public static Collection<Linker> generateLinkers(Component[][] array){
-        int width = array.length;
-        int length = array[0].length;
-        ArrayList<Linker> linkers = new ArrayList<>(width+length);
-        for(int i=0; i<width; i++){
-            linkers.add(new HorizontalLinker(array,i));
-        }
-        for(int j=0; j<length; j++){
-            linkers.add(new VerticalLinker(array,j));
-        }
-        System.out.println(width +" "+length+" "+linkers.size());
-        return linkers;
-        
-    }
-    
     
     
     
@@ -309,9 +237,9 @@ public class ConnectedComponentLabeling {
         }
         
         pool = Executors.newFixedThreadPool(THREAD_COUNT);
-        list.forEach(t ->{
-            pool.submit(t);
-        });
+        for(Callable c:list){
+            pool.submit(c);
+        }
     }
     
     public static void join(Collection<? extends Callable> list) throws InterruptedException{
@@ -325,77 +253,8 @@ public class ConnectedComponentLabeling {
     }
     
     
-    public static Collection<Collection<Component>> massPullOut(Collection<Component> components){
-        ArrayList<Collection<Component>> all = new ArrayList<>();
-        for(Component c:components){
-            Collection<Component> pullOut = pullOut(c);
-            if(!pullOut.isEmpty()){
-                all.add(pullOut);
-            } 
-        }
-        return all;
-    }
-    public static Collection<Component> pullOut(Component start){
-        
-        ArrayList<Component> list = new ArrayList<>();
-        if(start!= null && !start.visited){
-            start.visited = true;
-            list.add(start);
-        }else{
-            return list;
-        }
-        
-        list.addAll(pullOut(shared.get(start.up)));
-        list.addAll(pullOut(shared.get(start.down)));
-        list.addAll(pullOut(shared.get(start.left)));
-        list.addAll(pullOut(shared.get(start.right)));
-        return list;
-    }
-    public static void simpleRecursiveStrategy(Shared comp){
-        List<Component[]> list = Arrays.asList(comp.comp);
-        ArrayList<Component> massList = new ArrayList<>();
-        for(Component[] carray:list){
-            massList.addAll(Arrays.asList(carray));
-        }
-        Collection<Collection<Component>> massPullOut = massPullOut(massList);
+    
 
-        for(Collection<Component> collection:massPullOut){
-            String unusedLabel = getUnusedLabel();
-            
-            for(Component c:collection){
-                c.label = unusedLabel;
-            }
-            
-        }
-    
-    }
-    
-    public static void oldStrat(Integer[][] parsePicture) throws Exception{
-        ArrayList<Thread> threads = new ArrayList<>();
-        Component[][] array = fromPixelArray(parsePicture);
-        tableFunction(parsePicture,print);
-        shared = new Shared(array);
-        System.out.println();
-        Collection<Linker> linkers = generateLinkers(array);
-        for(Linker link:linkers){
-            link.call();
-        }
-        long time = System.nanoTime();
-        threads.clear();
-        System.out.println();
-        time = System.currentTimeMillis();
-        PullerAPI.advancedStrategy(shared);
-//        simpleRecursiveStrategy(shared);        
-        
-//        System.out.println(System.currentTimeMillis()- time);
-        System.out.println();
-//        tableFunction(array,printY);
-        System.out.println();
-//        tableFunction(array,printX);
-        tableFunction(array,printLabel);
-        System.out.println(shared.get(2,4).up);
-        System.exit(0);
-    }
     /**
      * @param args the command line arguments
      */
@@ -404,11 +263,13 @@ public class ConnectedComponentLabeling {
         String home = "C:/Users/Lemmin/Desktop/";
         String pic = "";
         pic = "Picture2.bmp";
-//        pic = "large.bmp";
+        pic = "large.bmp";
 //        pic = "PictureStrat.png";
         pic = "color.bmp";
+//        pic = "img.bmp";
+//        pic = "dawg.jpg";
         
-        Integer[][] parsePicture = parsePicture(home+pic);
+        Integer[][] parsePicture = parsePicture(home+pic,false);
         length = parsePicture[0].length;
         width = parsePicture.length;
 //        oldStrat(parsePicture);
