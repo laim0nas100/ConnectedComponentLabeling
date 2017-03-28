@@ -5,7 +5,6 @@
  */
 package connectedcomponentlabeling;
 
-import static connectedcomponentlabeling.ConnectedComponentLabeling.fromPixelArray;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.getUnusedLabel;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.print;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.printLabel;
@@ -25,50 +24,71 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SimpleStrats {
     public static Shared shared;
     public static class Shared{
-        public ConnectedComponentLabeling.Component[][] comp;
+        public Component[][] comp;
         public final int length,width;
-        public Shared(ConnectedComponentLabeling.Component[][] array){
+        public Shared(Component[][] array){
             this.comp = array;
             this.width = array.length;
             this.length = array[0].length;
         }
-        protected ConnectedComponentLabeling.Component get(int y, int x){
+        protected Component get(int y, int x){
             if(y<this.width && x<this.length){
                 return this.comp[y][x];
             }else{
                 return null;
             }
         }
-        protected ConnectedComponentLabeling.Component get(ConnectedComponentLabeling.Pos pos){
+        protected Component get(ConnectedComponentLabeling.Pos pos){
             if(pos == null){
                 return null;
             }
             return get(pos.y,pos.x);
         }
     }
+    public static class Component extends ConnectedComponentLabeling.MiniComponent{
+        public ConnectedComponentLabeling.Pos up;
+        public ConnectedComponentLabeling.Pos left;
+        public ConnectedComponentLabeling.Pos right;
+        public int c;
+        public volatile boolean visited;
+        
+        public Component(int Y, int X, int id){
+            super(Y,X,id);
+            this.c = 0;
+        }
+        @Override
+        public String toString(){
+            
+            return String.valueOf(this.location);
+        }
+        
+    }
+    
+    
+    
     public static abstract class Worker extends Shared implements Callable{
         public final int constant;
-        public Worker(ConnectedComponentLabeling.Component[][] array, int lineOrCol) {
+        public Worker(Component[][] array, int lineOrCol) {
             super(array);
             this.constant = lineOrCol;
         }  
     }   
     public static abstract class Linker extends Worker{
         protected int index;
-        public Linker(ConnectedComponentLabeling.Component[][] array, int lineOrCol) {
+        public Linker(Component[][] array, int lineOrCol) {
             super(array, lineOrCol);
         }
     }
  
     
     public static class VerticalLinker extends Linker{
-        public VerticalLinker(ConnectedComponentLabeling.Component[][] array, int col) {
+        public VerticalLinker(Component[][] array, int col) {
             super(array, col);
         }
         @Override
         public Object call() throws Exception {
-            ConnectedComponentLabeling.Component prev;
-            ConnectedComponentLabeling.Component next = this.comp[index][this.constant];
+            Component prev;
+            Component next = this.comp[index][this.constant];
             index++;
             while(index<this.width){
                 prev = next;
@@ -84,13 +104,13 @@ public class SimpleStrats {
 
     }
     public static class HorizontalLinker extends Linker{
-        public HorizontalLinker(ConnectedComponentLabeling.Component[][] array, int line) {
+        public HorizontalLinker(Component[][] array, int line) {
             super(array, line);
         }
         @Override
         public Object call() throws Exception {
-            ConnectedComponentLabeling.Component prev;
-            ConnectedComponentLabeling.Component next = this.comp[this.constant][this.index];
+            Component prev;
+            Component next = this.comp[this.constant][this.index];
             index++;
             while(index<this.length){
                 prev = next;
@@ -105,7 +125,7 @@ public class SimpleStrats {
         }
 
     }
-    public static Collection<Linker> generateLinkers(ConnectedComponentLabeling.Component[][] array){
+    public static Collection<Linker> generateLinkers(Component[][] array){
         int width = array.length;
         int length = array[0].length;
         ArrayList<Linker> linkers = new ArrayList<>(width+length);
@@ -122,15 +142,15 @@ public class SimpleStrats {
     
     public static AtomicInteger relabelCount = new AtomicInteger(0);
     public static class CompBlock{
-        public ConnectedComponentLabeling.Component c1,c2,c3,c4;
-        public CompBlock(ConnectedComponentLabeling.Component c1,ConnectedComponentLabeling.Component c2, ConnectedComponentLabeling.Component c3, ConnectedComponentLabeling.Component c4){
+        public Component c1,c2,c3,c4;
+        public CompBlock(Component c1,Component c2, Component c3, Component c4){
             this.c1 = c1;
             this.c2 = c2;
             this.c3 = c3;
             this.c4 = c4;
         }
-        public Collection<ConnectedComponentLabeling.Component> getAll(){
-            ArrayList<ConnectedComponentLabeling.Component> list = new ArrayList(4);
+        public Collection<Component> getAll(){
+            ArrayList<Component> list = new ArrayList(4);
             list.add(c1);
             list.add(c2);
             list.add(c3);
@@ -139,7 +159,7 @@ public class SimpleStrats {
         }
     }
     
-     public static Collection<Labeler> generateLabelers(ConnectedComponentLabeling.Component[][] array){
+    public static Collection<Labeler> generateLabelers(Component[][] array){
         ArrayList<Labeler> labelers = new ArrayList<>();
         array[0][0].label = getUnusedLabel();
         HorizontalLabeler dependency = null;
@@ -151,16 +171,16 @@ public class SimpleStrats {
         }
         return labelers;
     }
-        public static abstract class Labeler extends Worker{
+    public static abstract class Labeler extends Worker{
         public volatile int index;
         public Labeler dependancy;
-        public Labeler(ConnectedComponentLabeling.Component[][] array, int lineOrCol) {
+        public Labeler(Component[][] array, int lineOrCol) {
             super(array, lineOrCol);
         }
         
     }
     
-    public static int test(ConnectedComponentLabeling.Component c1, ConnectedComponentLabeling.Component c2, ConnectedComponentLabeling.Component c3){
+    public static int test(Component c1, Component c2, Component c3){
         
         if(c1.down!=null){// 1 2 5 7 9
             if(c1.right!=null){// 1 2
@@ -324,29 +344,29 @@ public class SimpleStrats {
     }
     public static class HorizontalLabeler extends Labeler{
         public int consInc;
-        public HorizontalLabeler(ConnectedComponentLabeling.Component[][] array, int lineOrCol) {
+        public HorizontalLabeler(Component[][] array, int lineOrCol) {
             super(array, lineOrCol);
             consInc = constant+1;
         }
         @Override
         public Object call() throws Exception {
-            ConnectedComponentLabeling.Component c;
+            Component c;
             while(index<this.length-1){
                 if(this.dependancy !=null){
                     while(index>=dependancy.index){}
                 }
                 c = get(constant,index);
                 
-                ConnectedComponentLabeling.Component down = get(consInc,index);
-                ConnectedComponentLabeling.Component right = get(constant,index+1);
-                ConnectedComponentLabeling.Component downRight = get(consInc,index+1);
+                Component down = get(consInc,index);
+                Component right = get(constant,index+1);
+                Component downRight = get(consInc,index+1);
                 CompBlock block = new CompBlock(c,right,down,downRight);
                 int testCase = test(c,right,down);
                 c.c = testCase;
                 labelBlock(block,testCase);
                 //test collision
                 // needs recursion
-                for(ConnectedComponentLabeling.Component b:block.getAll()){
+                for(Component b:block.getAll()){
                     eliminatorUp(b);
                     eliminatorLeft(b); 
                 }
@@ -365,14 +385,14 @@ public class SimpleStrats {
         }
         
         
-        public void eliminatorLeft(ConnectedComponentLabeling.Component start){
-            ConnectedComponentLabeling.Component left = get(start.left);
+        public void eliminatorLeft(Component start){
+            Component left = get(start.left);
             if(left== null){
                 return;
             }
             if((!Objects.equals(start.label, left.label))){
                 System.out.println("Collision left "+ start.location.toString());
-                ConnectedComponentLabeling.Component next = left;
+                Component next = left;
                 String ch = start.label;
                 do{
                     next.label = ch;
@@ -386,13 +406,13 @@ public class SimpleStrats {
                 }while(true);
             }
         }
-        public void eliminatorUp(ConnectedComponentLabeling.Component start){
-            ConnectedComponentLabeling.Component up = get(start.up);
+        public void eliminatorUp(Component start){
+            Component up = get(start.up);
             if(up != null){
                 if((!Objects.equals(start.label, up.label))){
                     System.out.println("Collision up "+ start.location.toString());
-                    ConnectedComponentLabeling.Component next = up;
-                    ArrayList<ConnectedComponentLabeling.Component> relabelMe = new ArrayList<>();
+                    Component next = up;
+                    ArrayList<Component> relabelMe = new ArrayList<>();
                     String ch = up.label;
                     do{
                         relabelMe.add(next);
@@ -407,7 +427,7 @@ public class SimpleStrats {
                         
                         relabelCount.incrementAndGet();
                     }while(true);
-                    for(ConnectedComponentLabeling.Component c:relabelMe){
+                    for(Component c:relabelMe){
                         c.label = ch;
                     }
                 }
@@ -417,20 +437,32 @@ public class SimpleStrats {
     }
     
     
+     public static Component[][] fromPixelArray(Integer[][] pixels){
+        int width = pixels.length;
+        int length = pixels[0].length;
+        Component[][] array = new Component[width][length];
+        for(int i=0;i<width;i++){
+            for(int j=0; j<length; j++){
+                Component comp = new Component(i,j,pixels[i][j]);
+                array[i][j] = comp; 
+            }
+        } 
+        return array;
+    }
     
-    public static Collection<Collection<ConnectedComponentLabeling.Component>> massPullOut(Collection<ConnectedComponentLabeling.Component> components){
-        ArrayList<Collection<ConnectedComponentLabeling.Component>> all = new ArrayList<>();
-        for(ConnectedComponentLabeling.Component c:components){
-            Collection<ConnectedComponentLabeling.Component> pullOut = pullOut(c);
+    public static Collection<Collection<Component>> massPullOut(Collection<Component> components){
+        ArrayList<Collection<Component>> all = new ArrayList<>();
+        for(Component c:components){
+            Collection<Component> pullOut = pullOut(c);
             if(!pullOut.isEmpty()){
                 all.add(pullOut);
             } 
         }
         return all;
     }
-    public static Collection<ConnectedComponentLabeling.Component> pullOut(ConnectedComponentLabeling.Component start){
+    public static Collection<Component> pullOut(Component start){
         
-        ArrayList<ConnectedComponentLabeling.Component> list = new ArrayList<>();
+        ArrayList<Component> list = new ArrayList<>();
         if(start!= null && !start.visited){
             start.visited = true;
             list.add(start);
@@ -445,17 +477,17 @@ public class SimpleStrats {
         return list;
     }
     public static void simpleRecursiveStrategy(Shared comp){
-        List<ConnectedComponentLabeling.Component[]> list = Arrays.asList(comp.comp);
-        ArrayList<ConnectedComponentLabeling.Component> massList = new ArrayList<>();
-        for(ConnectedComponentLabeling.Component[] carray:list){
+        List<Component[]> list = Arrays.asList(comp.comp);
+        ArrayList<Component> massList = new ArrayList<>();
+        for(Component[] carray:list){
             massList.addAll(Arrays.asList(carray));
         }
-        Collection<Collection<ConnectedComponentLabeling.Component>> massPullOut = massPullOut(massList);
+        Collection<Collection<Component>> massPullOut = massPullOut(massList);
 
-        for(Collection<ConnectedComponentLabeling.Component> collection:massPullOut){
+        for(Collection<Component> collection:massPullOut){
             String unusedLabel = getUnusedLabel();
             
-            for(ConnectedComponentLabeling.Component c:collection){
+            for(Component c:collection){
                 c.label = unusedLabel;
             }
             
@@ -466,7 +498,7 @@ public class SimpleStrats {
     
     public static void oldStrat(Integer[][] parsePicture) throws Exception{
         ArrayList<Thread> threads = new ArrayList<>();
-        ConnectedComponentLabeling.Component[][] array = fromPixelArray(parsePicture);
+        Component[][] array = fromPixelArray(parsePicture);
         tableFunction(parsePicture,print);
         shared = new Shared(array);
         System.out.println();
@@ -491,4 +523,22 @@ public class SimpleStrats {
         System.exit(0);
     }
     
+    
+    
+    public static ConnectedComponentLabeling.iTableFunction printCase = new ConnectedComponentLabeling.iTableFunction() {
+        @Override
+        public void onIteration(Object[][] array, int x, int y) {
+            Component comp = (Component)array[x][y];
+            String printme = " ";
+            if(comp != null){
+                printme = comp.c + "";
+            }
+            System.out.print(printme+" ");
+        }
+
+        @Override
+        public void onNewArray(Object[][] array, int x, int y) {
+            System.out.println(" :"+x);
+        }
+    };
 }

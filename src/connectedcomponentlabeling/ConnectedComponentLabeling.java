@@ -5,30 +5,26 @@
  */
 package connectedcomponentlabeling;
 
+import LibraryLB.Log;
+import LibraryLB.Threads.TaskExecutor;
+import connectedcomponentlabeling.OptimizedAPI.MiniShared;
 import static connectedcomponentlabeling.OptimizedAPI.optimizedStrategy;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javax.imageio.ImageIO;
 
 /**
@@ -39,15 +35,15 @@ public class ConnectedComponentLabeling {
     //1 24780
     //2 22801
     //3 24563
-    public static final int THREAD_COUNT = 4;
-    public static boolean useThreads = false;
+    public static final int THREAD_COUNT = 2;
     public static ExecutorService pool;
+    public static TaskExecutor executor;
     public static HashSet<String> set = new HashSet<>();
-    public static int length,width;
+    public static MiniShared shared;
     public static int charInt = 33;
     public static final int CORE_COUNT = Runtime.getRuntime().availableProcessors();
     public static MiniComponent[][] transpose(MiniComponent[][] array) throws InterruptedException{
-        System.out.println("Core count "+CORE_COUNT);
+        
         ExecutorService service = Executors.newFixedThreadPool(CORE_COUNT);
         final int size = array[0].length;
         final MiniComponent[][] result = new MiniComponent[size][array.length];
@@ -62,7 +58,6 @@ public class ConnectedComponentLabeling {
         }
         service.shutdown();
         service.awaitTermination(1, TimeUnit.DAYS);
-        
         return result;
         
     }
@@ -92,19 +87,7 @@ public class ConnectedComponentLabeling {
         return pixels;
     }  
     
-    public static Component[][] fromPixelArray(Integer[][] pixels){
-        int width = pixels.length;
-        int length = pixels[0].length;
-        Component[][] array = new Component[width][length];
-        for(int i=0;i<width;i++){
-            for(int j=0; j<length; j++){
-                Component comp = new Component(i,j,pixels[i][j]);
-                array[i][j] = comp; 
-            }
-        } 
-        return array;
-    }
-    
+   
     
     public static class MiniComponent{
         public Pos location;
@@ -161,7 +144,7 @@ public class ConnectedComponentLabeling {
         }
         @Override
         public int hashCode(){
-            return y*width + x;
+            return y*shared.width() + x;
         }
 
         @Override
@@ -185,32 +168,7 @@ public class ConnectedComponentLabeling {
             return true;
         }
     }
-    public static class Component extends MiniComponent{
-        public Pos up;
-        public Pos left;
-        public Pos right;
-        public int c;
-        public volatile boolean visited;
-        
-        public Component(int Y, int X, int id){
-            super(Y,X,id);
-            this.c = 0;
-        }
-        @Override
-        public String toString(){
-            
-            return String.valueOf(this.location);
-        }
-        
-    }
-    
-    
-
-    
-    
-    
-    
-    
+   
     public interface iTableFunction{
         public void onIteration(Object[][] array, int x, int y);
         public void onNewArray(Object[][] array, int x, int y);
@@ -224,35 +182,23 @@ public class ConnectedComponentLabeling {
         } 
     }
     
-    public static void start(Collection<? extends Callable> list) throws InterruptedException{
-        if(useThreads){
-            list.forEach(call ->{
-               new Thread(new FutureTask(call)).start();
-            });
-            return;
-        }
-        if(pool !=null){
-            pool.shutdownNow();
-            pool.awaitTermination(1, TimeUnit.DAYS); 
-        }
+    public static void start(Collection<? extends Callable> list) throws InterruptedException, Exception{
+        join();
         
         pool = Executors.newFixedThreadPool(THREAD_COUNT);
         for(Callable c:list){
             pool.submit(c);
         }
+        
+        
     }
     
-    public static void join(Collection<? extends Callable> list) throws InterruptedException{
-        if(useThreads){
-            Thread.sleep(5000);
-        }
+    public static void join() throws InterruptedException{
         if(pool!=null){
             pool.shutdown();
             pool.awaitTermination(1, TimeUnit.DAYS);
         }
     }
-    
-    
     
 
     /**
@@ -262,27 +208,30 @@ public class ConnectedComponentLabeling {
         
         String home = "C:/Users/Lemmin/Desktop/";
         String pic = "";
-        pic = "Picture2.bmp";
+//        pic = "Picture.bmp";
         pic = "large.bmp";
 //        pic = "PictureStrat.png";
-        pic = "color.bmp";
+//        pic = "color.bmp";
 //        pic = "img.bmp";
-//        pic = "dawg.jpg";
-        
+//        Log.changeStream('f', "res.txt");
+        Log.timeStamp = false;
+        Log.println("Core count "+CORE_COUNT);
         Integer[][] parsePicture = parsePicture(home+pic,false);
-        length = parsePicture[0].length;
-        width = parsePicture.length;
-//        oldStrat(parsePicture);
         
-        optimizedStrategy(parsePicture);
         
+        {
+            shared = new MiniShared(OptimizedAPI.fromPixelArrayMini(parsePicture));
+            BufferedImage image = optimizedStrategy(shared,false,true,false);
+            ImageIO.write(image, "png", new File(home+"result.png"));
+        }
+        {
+            shared = new MiniShared(OptimizedAPI.fromPixelArrayMini(parsePicture));
+            BufferedImage image = optimizedStrategy(shared,true,true,false);
+            ImageIO.write(image, "png", new File(home+"result2.png"));
+            
+        }
+        Log.close();
     }
-    
-    
-    
-    
-    
-    
     public static iTableFunction print = new iTableFunction() {
             boolean firstPrint = true;
             @Override
@@ -304,13 +253,15 @@ public class ConnectedComponentLabeling {
         };
     public static iTableFunction printLabel = new iTableFunction() {
             boolean firstPrint = true;
+            String line = "";
             @Override
             public void onIteration(Object[][] array, int x, int y) {
                 if(firstPrint){
+                    String numbers = "";
                     for(int i = 0; i<array[0].length; i++){
-                        System.out.print(i%10+" ");
+                        numbers += i%10;
                     }
-                    System.out.println();
+                    Log.println(numbers);
                     firstPrint = false;
                 }
                 MiniComponent comp = (MiniComponent)array[x][y];
@@ -318,11 +269,12 @@ public class ConnectedComponentLabeling {
                 if(comp != null && comp.label != null){
                     printme = comp.label;
                 }
-                System.out.print(printme+" ");
+                line+= printme;
             }
             @Override
             public void onNewArray(Object[][] array, int x, int y) {
-                System.out.println(" :"+x);
+                Log.println(line+" :"+x);
+                line = "";
             }
         };
     public static iTableFunction printX = new iTableFunction() {
@@ -347,22 +299,7 @@ public class ConnectedComponentLabeling {
                 System.out.println();
             }
         };
-    public static iTableFunction printCase = new iTableFunction() {
-            @Override
-            public void onIteration(Object[][] array, int x, int y) {
-                Component comp = (Component)array[x][y];
-                String printme = " ";
-                if(comp != null){
-                    printme = comp.c + "";
-                }
-                System.out.print(printme+" ");
-            }
-
-            @Override
-            public void onNewArray(Object[][] array, int x, int y) {
-                System.out.println(" :"+x);
-            }
-        };
+    
     
     
     public static ArrayList sortByComponent(Collection<MiniComponent> list){

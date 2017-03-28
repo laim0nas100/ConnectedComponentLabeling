@@ -8,6 +8,7 @@ package connectedcomponentlabeling;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.getUnusedLabel;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.join;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.start;
+import connectedcomponentlabeling.SimpleStrats.Component;
 import connectedcomponentlabeling.SimpleStrats.Shared;
 import connectedcomponentlabeling.SimpleStrats.Worker;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ public class PullerAPI {
     public static boolean print = false;
     public static class Store{
     public static ArrayList<Store> connected = new ArrayList<>();
-    public HashSet<ConnectedComponentLabeling.Component> stored;
+    public HashSet<Component> stored;
     public HashSet<ConnectedComponentLabeling.Pos> compareTo;
     public HashSet<ConnectedComponentLabeling.Pos> currentBottom;
     public boolean firstPush;
@@ -40,17 +41,17 @@ public class PullerAPI {
         public HorizontalPuller top;
         public volatile CountDownLatch latch;
         public ArrayList<ConnectedComponentLabeling.Pos> iterated = new ArrayList<>();
-        public ArrayList<Collection<ConnectedComponentLabeling.Component>> pulled = new ArrayList<>();
-        public HorizontalPuller(ConnectedComponentLabeling.Component[][] array, int lineOrCol) {
+        public ArrayList<Collection<Component>> pulled = new ArrayList<>();
+        public HorizontalPuller(Component[][] array, int lineOrCol) {
             super(array, lineOrCol);
             latch = new CountDownLatch(1);
             
         }
         
         private void iterateUntillWall(){
-            ArrayList<ConnectedComponentLabeling.Component> set = new ArrayList<>();
+            ArrayList<Component> set = new ArrayList<>();
             
-            ConnectedComponentLabeling.Component current = get(constant,index);
+            Component current = get(constant,index);
             iterated.add(current.location);
             set.add(current);
             while(current.right!=null){
@@ -63,19 +64,19 @@ public class PullerAPI {
             
         }
         
-        private ArrayList<ConnectedComponentLabeling.Pos> getTopPos(Collection<ConnectedComponentLabeling.Component> list){
+        private ArrayList<ConnectedComponentLabeling.Pos> getTopPos(Collection<Component> list){
             ArrayList<ConnectedComponentLabeling.Pos> set = new ArrayList<>();
-            for(ConnectedComponentLabeling.Component c:list){
-                ConnectedComponentLabeling.Component co = get(c.location.y-1,c.location.x);
+            for(Component c:list){
+                Component co = get(c.location.y-1,c.location.x);
                 if(co != null && co.down!= null){
                     set.add(co.location);
                 }
             }
             return set;
         }
-        private void createNewStore(Collection<ConnectedComponentLabeling.Component> list){
+        private void createNewStore(Collection<Component> list){
             Store store = new Store();
-            for(ConnectedComponentLabeling.Component c:list){
+            for(Component c:list){
                 store.compareTo.add(c.location);
                 store.currentBottom.add(c.location);
                 
@@ -107,7 +108,7 @@ public class PullerAPI {
             
             if(top==null){// I AM THE FIRST ONE
                 System.out.println(constant+" : START First");
-                for(Collection<ConnectedComponentLabeling.Component> map:pulled){
+                for(Collection<Component> map:pulled){
                     createNewStore(map);
                 }
                 
@@ -119,7 +120,7 @@ public class PullerAPI {
                     s.currentBottom.clear();
                     s.firstPush = true;
                 }
-                for(Collection<ConnectedComponentLabeling.Component> map:pulled){
+                for(Collection<Component> map:pulled){
                     boolean needNewStore = true;
                     boolean storeCondition = true;
                     boolean quickEnd = false;
@@ -129,7 +130,7 @@ public class PullerAPI {
                         storeIndex++;
                         ArrayList<ConnectedComponentLabeling.Pos> topPos = getTopPos(map);
                         ArrayList<ConnectedComponentLabeling.Pos> currentPosistions = new ArrayList<>(map.size());
-                            for(ConnectedComponentLabeling.Component c:map){
+                            for(Component c:map){
                                 currentPosistions.add(c.location);
                             }
                         if(topPos.isEmpty()){
@@ -216,7 +217,7 @@ public class PullerAPI {
         }
         
     }
-    public static void advancedStrategy(Shared shared) throws InterruptedException{
+    public static void advancedStrategy(Shared shared) throws InterruptedException, Exception{
         ArrayList<HorizontalPuller> pullers = new ArrayList<>(shared.width);
         HorizontalPuller current = new HorizontalPuller(shared.comp,0);
         pullers.add(current);
@@ -227,10 +228,10 @@ public class PullerAPI {
             pullers.add(pull);
         }
         start(pullers);
-        join(pullers);
+        join();
         for(Store store:Store.connected){
             String unusedLabel = getUnusedLabel();
-            for(ConnectedComponentLabeling.Component component:store.stored){
+            for(Component component:store.stored){
                 if(component == null){
                     System.out.println("Found null");
                 }else{

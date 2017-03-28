@@ -5,6 +5,7 @@
  */
 package connectedcomponentlabeling;
 
+import LibraryLB.Log;
 import connectedcomponentlabeling.ConnectedComponentLabeling.MiniComponent;
 import connectedcomponentlabeling.ConnectedComponentLabeling.Pos;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.getUnusedLabel;
@@ -15,6 +16,9 @@ import static connectedcomponentlabeling.ConnectedComponentLabeling.sortByPos;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.start;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.tableFunction;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.transpose;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -76,18 +80,21 @@ public class OptimizedAPI {
     }
     public static class MiniShared{
         public MiniComponent[][] comp;
-        public final int length,width;
         public MiniShared(MiniComponent[][] array){
             this.comp = array;
-            this.width = array.length;
-            this.length = array[0].length;
         }
         protected MiniComponent get(int y, int x){
-            if(y<this.width && x<this.length){
+            if(y<this.width() && x<this.length()){
                 return this.comp[y][x];
             }else{
                 return null;
             }
+        }
+        public final int width(){
+            return comp.length;
+        }
+        public final int length(){
+            return comp[0].length;
         }
         protected MiniComponent get(Pos pos){
             if(pos == null){
@@ -145,7 +152,7 @@ public class OptimizedAPI {
                 next.down = down.location;
             }
             index++;
-            while(index<this.length){
+            while(index<this.length()){
                 this.iterated.getLast().add(next);
                 prev = next;
                 next = this.get(workLine, index);
@@ -158,21 +165,22 @@ public class OptimizedAPI {
                 }
                 index++;
             }
-            for(HashSet<MiniComponent> set:iterated){
-                CompSet cset = new CompSet();
-                cset.bottom.addAll(set);
-                set.forEach(component ->{
-                    cset.topPos.add(component.location);
-                });
-                cset.collected.addAll(set);
-                compSet.add(cset);
-            }
+            this.iterated.getLast().add(next);
+                for(HashSet<MiniComponent> set:iterated){
+                    CompSet cset = new CompSet();
+                    cset.bottom.addAll(set);
+                    for(MiniComponent component:set){
+                        cset.topPos.add(component.location);
+                    }
+                    cset.collected.addAll(set);
+                    compSet.add(cset);
+                }
+            this.iterated.clear();
         }
         
     } 
     public static class WorkerMerger extends DependableWorker{
         
-//        public WorkerMerger depTop,depBot;
         public UltimateWorker top,bot;
 
         public WorkerMerger(MiniComponent[][] array,UltimateWorker topWork,UltimateWorker botWork) {
@@ -211,7 +219,7 @@ public class OptimizedAPI {
             int topLimit = topSet.size()-1;
             int botLimit = botSet.size()-1;
             boolean endOuter = false;
-            boolean endInner = false;
+            boolean endInner = false;         
             while(i<topLimit && !endOuter){
                 i++;
                 CompSet set = topSet.get(i);
@@ -227,8 +235,9 @@ public class OptimizedAPI {
                         otherSet.added = true;
                     }
                 }
-                set.bottom.clear();
+                
                 if(!matchedSets.isEmpty()){
+                    set.bottom.clear();
                     set.recentlyAdded.clear();
                     for(CompSet matched:matchedSets){
                         set.bottom.addAll(matched.bottom);
@@ -249,7 +258,8 @@ public class OptimizedAPI {
                 Iterator<CompSet> iterator = topSet.iterator();
                 while(iterator.hasNext()){
                     CompSet other = iterator.next();
-                    if(hasSameElement(set.collected,other.collected)){
+//                    if(hasSameElement(set.collected,other.collected)){
+                    if(hasSameElement(set.bottom,other.bottom)){
                         set.topPos.addAll(other.topPos); 
                         set.bottom.addAll(other.bottom);
                         set.collected.addAll(other.collected);
@@ -276,39 +286,32 @@ public class OptimizedAPI {
         
     }
     
-    public static void optimizedStrategy(Integer[][] pixels) throws InterruptedException{
-        MiniComponent[][] fromPixels = fromPixelArrayMini(pixels);
-        
-        boolean didTranspose = false;
+    public static BufferedImage optimizedStrategy(MiniShared shared, boolean didTranspose, boolean returnImage, boolean printImage) throws InterruptedException, Exception{
         long transposeOverhead = System.currentTimeMillis();
-        
-        if(fromPixels.length > fromPixels[0].length){
-            fromPixels = transpose(fromPixels);
-            didTranspose = true;
+        if(didTranspose){
+            shared.comp = transpose(shared.comp);
         }
         transposeOverhead = System.currentTimeMillis() - transposeOverhead;
         
-        MiniShared shared = new MiniShared(fromPixels);
         UltimateWorker firstWorker;
         ArrayList<UltimateWorker> workers = new ArrayList<>();
         ArrayList<WorkerMerger> mergers = new ArrayList<>();
         HashMap<Integer,DependableWorker> dependables = new HashMap<>();
-        for(int i = 0; i<shared.width; i++){
+        for(int i = 0; i<shared.width(); i++){
             UltimateWorker worker = new UltimateWorker(shared.comp,i);
             workers.add(worker);
             dependables.put(i, worker);
         }
         firstWorker = workers.get(0);
-        int width = shared.width;
         int increment = 2;
         
         do{
             int offset = increment/2;
             int count = 0;
-            for(int i=0; i+offset<width; i+= increment){
+            for(int i=0; i+offset<shared.width(); i+= increment){
                 int top = i;
                 int bot = i + offset;
-                System.out.println(top+" "+(bot));
+//                Log.println(top+" "+(bot));
                 WorkerMerger merger = new WorkerMerger(shared.comp,workers.get(top),workers.get(bot));
                 merger.dependencies.add(dependables.remove(bot).latch);
                 merger.dependencies.add(dependables.remove(top).latch);
@@ -317,32 +320,59 @@ public class OptimizedAPI {
                 count++;
             }
             increment*=2;
-            System.out.println("#### "+increment +" parallelization: "+count);
-        }while(increment/2<width);
+            Log.println("#### "+increment +" parallelization: "+count);
+        }while(increment/2<shared.width());
         
         ArrayList<DependableWorker> all = new ArrayList<>();
         all.addAll(workers);
         all.addAll(mergers);
         long time = System.currentTimeMillis();
         start(all);
-        join(all);
+        join();
         time = System.currentTimeMillis() - time;
-        
+        ArrayList<MiniComponent> comps = new ArrayList<>(shared.width()*shared.length());
         for(CompSet comp:firstWorker.compSet){
             String label = getUnusedLabel();
             for(MiniComponent component:comp.collected){
                 component.label = label;
             }
+            comps.addAll(comp.collected);
         }
         long transposeOverhead2 = System.currentTimeMillis();
         if(didTranspose){
             shared.comp = transpose(shared.comp);
         }
         transposeOverhead2 = System.currentTimeMillis() - transposeOverhead2;
-        tableFunction(shared.comp,printLabel);
-        System.out.println("\n"+time);
-        System.out.println("transpose overhead "+ transposeOverhead +" "+transposeOverhead2);
-        System.out.println("Total:"+(time+ transposeOverhead + transposeOverhead2));
+        if(printImage){
+           tableFunction(shared.comp,printLabel); 
+        }
+        
+        Log.println("\n"+time);
+        Log.println("transpose overhead "+ transposeOverhead +" "+transposeOverhead2);
+        Log.println("Total:"+(time+ transposeOverhead + transposeOverhead2));
+        
+        if(returnImage){
+            BufferedImage image = new BufferedImage(shared.length(),shared.width(),BufferedImage.TYPE_3BYTE_BGR);
+            for(MiniComponent comp:comps){
+                try{
+                int val = comp.label.hashCode();
+                int red = val*70 % 255;
+                int blu = val*50 %255;
+                int green = val *60 % 255;
+                int rgb = new Color(red,green,blu).getRGB();
+                
+                    image.setRGB(comp.location.x, comp.location.y, rgb);
+                }catch (Exception e){
+
+                    Log.print(comp.location+" "+e.getMessage());
+                }
+            }
+            return image;
+        }else{
+            return null;
+        }
+        
+        
         
     }
 }
