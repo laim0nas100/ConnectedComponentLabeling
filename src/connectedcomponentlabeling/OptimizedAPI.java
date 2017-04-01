@@ -223,7 +223,7 @@ public class OptimizedAPI {
                 CompSet set = topSet.get(i);
                 HashSet<Pos> connectedBottomPos = set.getConnectedBottomPos();
                 
-                ArrayList<CompSet> matchedSets = new ArrayList<>();
+                ArrayDeque<CompSet> matchedSets = new ArrayDeque<>();
                 int j = -1;
                 while(j<botLimit){
                     j++;
