@@ -6,7 +6,6 @@
 package connectedcomponentlabeling;
 
 import LibraryLB.Log;
-import LibraryLB.Threads.TaskExecutor;
 import connectedcomponentlabeling.OptimizedAPI.MiniShared;
 import static connectedcomponentlabeling.OptimizedAPI.optimizedStrategy;
 import java.awt.image.BufferedImage;
@@ -21,10 +20,7 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
-import javafx.concurrent.Task;
 import javax.imageio.ImageIO;
 
 /**
@@ -32,12 +28,8 @@ import javax.imageio.ImageIO;
  * @author Lemmin
  */
 public class ConnectedComponentLabeling {
-    //1 24780
-    //2 22801
-    //3 24563
-    public static final int THREAD_COUNT = 2;
+    public static final int THREAD_COUNT = 4;
     public static ExecutorService pool;
-    public static TaskExecutor executor;
     public static HashSet<String> set = new HashSet<>();
     public static MiniShared shared;
     public static int charInt = 33;
@@ -209,12 +201,12 @@ public class ConnectedComponentLabeling {
         home = "C:/Users/Lemmin/Desktop/";
         home = "/mnt/Extra-Space/Dev/Java/Workspace/ConnectedComponentLabeling/test/";
         String pic = "";
-        pic = "bars.bmp";
-//        pic = "Picture.bmp";
+//        pic = "bars.bmp";
+        pic = "picture.bmp";
 //        pic = "large.bmp";
 //        pic = "PictureStrat.png";
 //        pic = "color.bmp";
-//        pic = "img.bmp";
+        pic = "img.bmp";
 //        Log.changeStream('f', "res.txt");
         Log.timeStamp = false;
         Log.println("Core count "+CORE_COUNT);

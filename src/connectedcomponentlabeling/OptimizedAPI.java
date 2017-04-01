@@ -212,24 +212,27 @@ public class OptimizedAPI {
         public void logic(){
             ArrayList<CompSet> topSet = top.compSet;  
             ArrayList<CompSet> botSet = bot.compSet;
+            
+            ArrayDeque<CompSet> mergingSets = new ArrayDeque<>();
+            ArrayDeque<CompSet> nonMergingSets = new ArrayDeque<>();
             int i =-1;
             int topLimit = topSet.size()-1;
-            int botLimit = botSet.size()-1;
-            boolean endOuter = false;
-            boolean endInner = false;         
-            while(i<topLimit && !endOuter){
+            int botLimit = botSet.size()-1;       
+            while(i<topLimit){
                 i++;
                 CompSet set = topSet.get(i);
                 HashSet<Pos> connectedBottomPos = set.getConnectedBottomPos();
                 
                 ArrayList<CompSet> matchedSets = new ArrayList<>();
                 int j = -1;
-                while(j<botLimit && !endInner){
+                while(j<botLimit){
                     j++;
                     CompSet otherSet = botSet.get(j);
                     if(hasSameElement(connectedBottomPos,otherSet.topPos)){
                         matchedSets.add(otherSet);
                         otherSet.added = true;
+                    }else if (i == topLimit && !otherSet.added){//new set to add
+                        nonMergingSets.add(otherSet);
                     }
                 }
                 
@@ -239,24 +242,20 @@ public class OptimizedAPI {
                         set.bottom.addAll(matched.bottom);
                         set.collected.addAll(matched.collected);
                     }
+                    mergingSets.add(set);
+                }else{
+                    nonMergingSets.add(set);
                 }  
             }
-            //find new set
-            for(CompSet bots:botSet){              
-                if(!bots.added){
-                    topSet.add(bots);
-                }
-            }
+            topSet.clear();
+            topSet.addAll(nonMergingSets);
+            
             //merge sets
-            ArrayList<CompSet> newSets = new ArrayList<>();
-            ArrayDeque<CompSet> oldSet = new ArrayDeque<>();
-            oldSet.addAll(topSet);
-            while(!oldSet.isEmpty()){
-                CompSet set = oldSet.pollFirst();
-                Iterator<CompSet> iterator = oldSet.iterator();
+            while(!mergingSets.isEmpty()){
+                CompSet set = mergingSets.pollFirst();
+                Iterator<CompSet> iterator = mergingSets.iterator();
                 while(iterator.hasNext()){
                     CompSet other = iterator.next();
-//                    if(hasSameElement(set.collected,other.collected)){
                     if(hasSameElement(set.bottom,other.bottom)){
                         set.topPos.addAll(other.topPos); 
                         set.bottom.addAll(other.bottom);
@@ -264,11 +263,9 @@ public class OptimizedAPI {
                         iterator.remove();
                     }
                 }
-                newSets.add(set);
+                topSet.add(set);
                 
             }
-            topSet.clear();            
-            topSet.addAll(newSets);
         }
 
         
