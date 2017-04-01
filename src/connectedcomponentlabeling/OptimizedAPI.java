@@ -17,7 +17,6 @@ import static connectedcomponentlabeling.ConnectedComponentLabeling.start;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.tableFunction;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.transpose;
 import java.awt.Color;
-import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -52,7 +51,6 @@ public class OptimizedAPI {
         public HashSet<Pos> topPos;
         public HashSet<MiniComponent> bottom;
         public HashSet<MiniComponent> collected;
-        public HashSet<MiniComponent> recentlyAdded;
         public boolean added = false;
         public HashSet<Pos> getConnectedBottomPos(){
             HashSet<Pos> pos = new HashSet<>();
@@ -67,7 +65,6 @@ public class OptimizedAPI {
             this.topPos = new HashSet<>();
             this.bottom = new HashSet<>();
             this.collected = new HashSet<>();
-            this.recentlyAdded = new HashSet<>();
         }
         @Override
         public String toString(){
@@ -238,12 +235,11 @@ public class OptimizedAPI {
                 
                 if(!matchedSets.isEmpty()){
                     set.bottom.clear();
-                    set.recentlyAdded.clear();
                     for(CompSet matched:matchedSets){
                         set.bottom.addAll(matched.bottom);
                         set.collected.addAll(matched.collected);
                     }
-                }   
+                }  
             }
             //find new set
             for(CompSet bots:botSet){              
@@ -253,9 +249,11 @@ public class OptimizedAPI {
             }
             //merge sets
             ArrayList<CompSet> newSets = new ArrayList<>();
-            while(!topSet.isEmpty()){
-                CompSet set = topSet.remove(0);
-                Iterator<CompSet> iterator = topSet.iterator();
+            ArrayDeque<CompSet> oldSet = new ArrayDeque<>();
+            oldSet.addAll(topSet);
+            while(!oldSet.isEmpty()){
+                CompSet set = oldSet.pollFirst();
+                Iterator<CompSet> iterator = oldSet.iterator();
                 while(iterator.hasNext()){
                     CompSet other = iterator.next();
 //                    if(hasSameElement(set.collected,other.collected)){
@@ -269,7 +267,7 @@ public class OptimizedAPI {
                 newSets.add(set);
                 
             }
-            topSet.clear();
+            topSet.clear();            
             topSet.addAll(newSets);
         }
 

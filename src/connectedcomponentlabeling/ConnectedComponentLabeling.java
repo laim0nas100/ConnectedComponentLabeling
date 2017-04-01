@@ -205,11 +205,13 @@ public class ConnectedComponentLabeling {
      * @param args the command line arguments
      */
     public static void main(String[] args) throws Exception{
-        
-        String home = "C:/Users/Lemmin/Desktop/";
+        String home = "";
+        home = "C:/Users/Lemmin/Desktop/";
+        home = "/mnt/Extra-Space/Dev/Java/Workspace/ConnectedComponentLabeling/test/";
         String pic = "";
+        pic = "bars.bmp";
 //        pic = "Picture.bmp";
-        pic = "large.bmp";
+//        pic = "large.bmp";
 //        pic = "PictureStrat.png";
 //        pic = "color.bmp";
 //        pic = "img.bmp";
@@ -224,12 +226,12 @@ public class ConnectedComponentLabeling {
             BufferedImage image = optimizedStrategy(shared,false,true,false);
             ImageIO.write(image, "png", new File(home+"result.png"));
         }
-        {
-            shared = new MiniShared(OptimizedAPI.fromPixelArrayMini(parsePicture));
-            BufferedImage image = optimizedStrategy(shared,true,true,false);
-            ImageIO.write(image, "png", new File(home+"result2.png"));
-            
-        }
+//        {
+//            shared = new MiniShared(OptimizedAPI.fromPixelArrayMini(parsePicture));
+//            BufferedImage image = optimizedStrategy(shared,true,true,false);
+//            ImageIO.write(image, "png", new File(home+"result2.png"));
+//            
+//        }
         Log.close();
     }
     public static iTableFunction print = new iTableFunction() {
