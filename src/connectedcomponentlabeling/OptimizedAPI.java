@@ -16,8 +16,6 @@ import static connectedcomponentlabeling.ConnectedComponentLabeling.sortByPos;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.start;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.tableFunction;
 import static connectedcomponentlabeling.ConnectedComponentLabeling.transpose;
-import java.awt.Color;
-import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -281,13 +279,13 @@ public class OptimizedAPI {
         
     }
     
-    public static BufferedImage optimizedStrategy(MiniShared shared, boolean didTranspose, boolean returnImage, boolean printImage) throws InterruptedException, Exception{
-        long transposeOverhead = System.currentTimeMillis();
-        if(didTranspose){
-            shared.comp = transpose(shared.comp);
-        }
-        transposeOverhead = System.currentTimeMillis() - transposeOverhead;
-        
+    public static void optimizedStrategy(MiniShared shared, boolean didTranspose, boolean printImage) throws InterruptedException, Exception{
+//        long transposeOverhead = System.currentTimeMillis();
+//        if(didTranspose){
+//            shared.comp = transpose(shared.comp);
+//        }
+//        transposeOverhead = System.currentTimeMillis() - transposeOverhead;
+//        
         UltimateWorker firstWorker;
         ArrayList<UltimateWorker> workers = new ArrayList<>();
         ArrayList<WorkerMerger> mergers = new ArrayList<>();
@@ -315,57 +313,55 @@ public class OptimizedAPI {
                 count++;
             }
             increment*=2;
-            Log.println("#### "+increment +" parallelization: "+count);
+//            Log.println("#### "+increment +" parallelization: "+count);
         }while(increment/2<shared.width());
         
         ArrayList<DependableWorker> all = new ArrayList<>();
         all.addAll(workers);
         all.addAll(mergers);
-        long time = System.currentTimeMillis();
+//        long time = System.currentTimeMillis();
         start(all);
         join();
-        time = System.currentTimeMillis() - time;
-        ArrayList<MiniComponent> comps = new ArrayList<>(shared.width()*shared.length());
+//        time = System.currentTimeMillis() - time;
         for(CompSet comp:firstWorker.compSet){
             String label = getUnusedLabel();
             for(MiniComponent component:comp.collected){
                 component.label = label;
             }
-            comps.addAll(comp.collected);
         }
-        long transposeOverhead2 = System.currentTimeMillis();
-        if(didTranspose){
-            shared.comp = transpose(shared.comp);
-        }
-        transposeOverhead2 = System.currentTimeMillis() - transposeOverhead2;
-        if(printImage){
-           tableFunction(shared.comp,printLabel); 
-        }
+//        long transposeOverhead2 = System.currentTimeMillis();
+//        if(didTranspose){
+//            shared.comp = transpose(shared.comp);
+//        }
+//        transposeOverhead2 = System.currentTimeMillis() - transposeOverhead2;
+//        if(printImage){
+//           tableFunction(shared.comp,printLabel); 
+//        }
         
-        Log.println("\n"+time);
-        Log.println("transpose overhead "+ transposeOverhead +" "+transposeOverhead2);
-        Log.println("Total:"+(time+ transposeOverhead + transposeOverhead2));
-        
-        if(returnImage){
-            BufferedImage image = new BufferedImage(shared.length(),shared.width(),BufferedImage.TYPE_3BYTE_BGR);
-            for(MiniComponent comp:comps){
-                try{
-                int val = comp.label.hashCode();
-                int red = val*70 % 255;
-                int blu = val*50 %255;
-                int green = val *60 % 255;
-                int rgb = new Color(red,green,blu).getRGB();
-                
-                    image.setRGB(comp.location.x, comp.location.y, rgb);
-                }catch (Exception e){
-
-                    Log.print(comp.location+" "+e.getMessage());
-                }
-            }
-            return image;
-        }else{
-            return null;
-        }
+//        Log.println("\n"+time);
+//        Log.println("transpose overhead "+ transposeOverhead +" "+transposeOverhead2);
+//        Log.println("Total:"+(time+ transposeOverhead + transposeOverhead2));
+//        return comps;
+//        if(returnImage){
+//            BufferedImage image = new BufferedImage(shared.length(),shared.width(),BufferedImage.TYPE_3BYTE_BGR);
+//            for(MiniComponent comp:comps){
+//                try{
+//                int val = comp.label.hashCode();
+//                int red = val*70 % 255;
+//                int blu = val*50 %255;
+//                int green = val *60 % 255;
+//                int rgb = new Color(red,green,blu).getRGB();
+//                
+//                    image.setRGB(comp.location.x, comp.location.y, rgb);
+//                }catch (Exception e){
+//
+//                    Log.print(comp.location+" "+e.getMessage());
+//                }
+//            }
+//            return image;
+//        }else{
+//            return null;
+//        }
         
         
         

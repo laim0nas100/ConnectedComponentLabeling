@@ -7,7 +7,7 @@ package connectedcomponentlabeling;
 
 import LibraryLB.Log;
 import connectedcomponentlabeling.OptimizedAPI.MiniShared;
-import static connectedcomponentlabeling.OptimizedAPI.optimizedStrategy;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -28,7 +29,7 @@ import javax.imageio.ImageIO;
  * @author Lemmin
  */
 public class ConnectedComponentLabeling {
-    public static final int THREAD_COUNT = 4;
+    public static final int THREAD_COUNT = 2;
     public static ExecutorService pool;
     public static HashSet<String> set = new HashSet<>();
     public static MiniShared shared;
@@ -78,7 +79,28 @@ public class ConnectedComponentLabeling {
         }
         return pixels;
     }  
-    
+    public static BufferedImage toImage(MiniShared shared){
+        BufferedImage image = new BufferedImage(shared.length(),shared.width(),BufferedImage.TYPE_3BYTE_BGR);
+        iTableFunction colorMe = new iTableFunction() {
+            @Override
+            public void onIteration(Object[][] array, int x, int y) {
+                    MiniComponent comp = (MiniComponent) array[x][y];
+                    int val = comp.label.hashCode()*10;
+                    int rgb;
+                    int red = val*13 % 255;
+                    int blu = val*17 % 255;
+                    int green = val *23 % 255;
+                    rgb = new Color(red,green,blu).getRGB();               
+                    image.setRGB(comp.location.x, comp.location.y, rgb);
+            }
+
+            @Override
+            public void onNewArray(Object[][] array, int x, int y) {
+            }
+        };
+        tableFunction(shared.comp,colorMe);
+        return image;
+    }
    
     
     public static class MiniComponent{
@@ -199,31 +221,33 @@ public class ConnectedComponentLabeling {
     public static void main(String[] args) throws Exception{
         String home = "";
         home = "C:/Users/Lemmin/Desktop/";
-        home = "/mnt/Extra-Space/Dev/Java/Workspace/ConnectedComponentLabeling/test/";
+//        home = "/mnt/Extra-Space/Dev/Java/Workspace/ConnectedComponentLabeling/test/";
         String pic = "";
 //        pic = "bars.bmp";
-        pic = "picture.bmp";
+//        pic = "picture.bmp";
 //        pic = "large.bmp";
 //        pic = "PictureStrat.png";
 //        pic = "color.bmp";
-        pic = "img.bmp";
-//        Log.changeStream('f', "res.txt");
+//        pic = "img.bmp";
+//        pic = "stripes.bmp";
+//        pic = "bars.bmp";
+//        pic = "spiral.bmp";
+//        pic = "stairs.bmp";
+        pic = "stairs2.bmp";
+        Log.changeStream('f', home+"res.txt");
         Log.timeStamp = false;
         Log.println("Core count "+CORE_COUNT);
         Integer[][] parsePicture = parsePicture(home+pic,false);
+//        shared = new MiniShared(OptimizedAPI.fromPixelArrayMini(parsePicture));
+        shared = new RosenfeldPfaltz.SimpleShared(RosenfeldPfaltz.fromPixelArraySimple(parsePicture));
+        long time = System.currentTimeMillis();
         
+        RosenfeldPfaltz.strategy((RosenfeldPfaltz.SimpleShared) shared);
         
-        {
-            shared = new MiniShared(OptimizedAPI.fromPixelArrayMini(parsePicture));
-            BufferedImage image = optimizedStrategy(shared,false,true,false);
-            ImageIO.write(image, "png", new File(home+"result.png"));
-        }
-//        {
-//            shared = new MiniShared(OptimizedAPI.fromPixelArrayMini(parsePicture));
-//            BufferedImage image = optimizedStrategy(shared,true,true,false);
-//            ImageIO.write(image, "png", new File(home+"result2.png"));
-//            
-//        }
+//        RowByRow.strat(shared);
+//        OptimizedAPI.optimizedStrategy(shared,false,false);
+        Log.print(System.currentTimeMillis() - time);
+        ImageIO.write(toImage(shared), "png", new File(home+"result.png"));
         Log.close();
     }
     public static iTableFunction print = new iTableFunction() {
