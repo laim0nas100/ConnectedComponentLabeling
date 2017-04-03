@@ -85,7 +85,8 @@ public class ConnectedComponentLabeling {
             @Override
             public void onIteration(Object[][] array, int x, int y) {
                     MiniComponent comp = (MiniComponent) array[x][y];
-                    int val = comp.label.hashCode()*10;
+                    int val = Math.abs(comp.label.hashCode() % 10000);
+                    
                     int rgb;
                     int red = val*13 % 255;
                     int blu = val*17 % 255;
@@ -224,8 +225,8 @@ public class ConnectedComponentLabeling {
 //        home = "/mnt/Extra-Space/Dev/Java/Workspace/ConnectedComponentLabeling/test/";
         String pic = "";
 //        pic = "bars.bmp";
-//        pic = "picture.bmp";
-//        pic = "large.bmp";
+        pic = "picture.bmp";
+        pic = "large.bmp";
 //        pic = "PictureStrat.png";
 //        pic = "color.bmp";
 //        pic = "img.bmp";
@@ -233,7 +234,7 @@ public class ConnectedComponentLabeling {
 //        pic = "bars.bmp";
 //        pic = "spiral.bmp";
 //        pic = "stairs.bmp";
-        pic = "stairs2.bmp";
+//        pic = "stairs2.bmp";
         Log.changeStream('f', home+"res.txt");
         Log.timeStamp = false;
         Log.println("Core count "+CORE_COUNT);

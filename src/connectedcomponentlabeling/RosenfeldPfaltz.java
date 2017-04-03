@@ -8,7 +8,6 @@ package connectedcomponentlabeling;
 import LibraryLB.Log;
 import connectedcomponentlabeling.ConnectedComponentLabeling.MiniComponent;
 import connectedcomponentlabeling.ConnectedComponentLabeling.iTableFunction;
-import static connectedcomponentlabeling.ConnectedComponentLabeling.tableFunction;
 import connectedcomponentlabeling.OptimizedAPI.MiniShared;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,53 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Lemmin
  */
 public class RosenfeldPfaltz {
-    
-    public static class UnionFind {
-
-        private int[] _parent;
-        private int[] _rank;
-
-
-        public int find(int i) {
-
-          int p = _parent[i];
-          if (i == p) {
-            return i;
-          }
-          return _parent[i] = find(p);
-
-        }
-
-
-        public void union(int i, int j) {
-
-          int root1 = find(i);
-          int root2 = find(j);
-
-          if (root2 == root1) return;
-
-          if (_rank[root1] > _rank[root2]) {
-            _parent[root2] = root1;
-          } else if (_rank[root2] > _rank[root1]) {
-            _parent[root1] = root2;
-          } else {
-            _parent[root2] = root1;
-            _rank[root1]++;
-          }
-        }
-
-
-
-        public UnionFind(int max) {
-
-          _parent = new int[max];
-          _rank = new int[max];
-
-          for (int i = 0; i < max; i++) {
-            _parent[i] = i;
-          }
-        }
-    }
+    public static int threadCount = 1;
     public static SimpleComponent[][] fromPixelArraySimple(Integer[][] pixels){
         int width = pixels.length;
         int length = pixels[0].length;
@@ -130,37 +83,49 @@ public class RosenfeldPfaltz {
     
     public static HashMap<Integer,UFNode> nodes = new HashMap<>();
     public static HashMap<Integer,Integer> lookUpCache = new HashMap<>();
+    public static UnionFind uf = new UnionFind();
     public static AtomicInteger currentLabel = new AtomicInteger(1);
-    
-    public static int lookUpCache(int id){
-        if(lookUpCache.containsKey(id)){
-            return lookUpCache.get(id);
-        }else{
-            if(nodes.containsKey(id)){
-                UFNode child = nodes.get(id);
-                UFNode lastParent = child.getLastParent();
-                lookUpCache.put(id, lastParent.id);
-                return lastParent.id;
-            }else{
-                return id;
+    public static ExecutorService unionService;// = Executors.newSingleThreadExecutor();
+    public static void unionRequest(int min, int max){
+        if(!uf.map.containsKey(min)){
+            uf.add(min);
+        } 
+        if(!uf.map.containsKey(max)){
+            uf.add(max);  
+        }
+        Runnable run = new Runnable(){
+            @Override
+            public void run() {
+                uf.union(min, max);
             }
-            
-        }
+        };
+        unionService.submit(run);
     }
-    public static UFNode getOrCreate(int id){
-        if(nodes.containsKey(id)){
-            return nodes.get(id);
+    public static void lookUpCache(final SimpleComponent comp){
+        final int id = comp.intLabel;
+        if(lookUpCache.containsKey(id)){
+            comp.label = lookUpCache.get(id)+"";
         }else{
-            UFNode node = new UFNode(id);
-            nodes.put(id,node);
-            return node;
+            if(!uf.map.containsKey(id)){
+                comp.label = id+"";
+            }else{
+                Runnable run = new Runnable(){
+                    @Override
+                    public void run() {
+                        int find = (int) uf.find(id);
+                        lookUpCache.put(id, find);
+                        comp.label = find+"";
+                    }
+                    
+                };
+                unionService.submit(run);
+            }
         }
+        
     }
     public static class SimpleShared extends MiniShared{
-//        public SimpleComponent[][] comp;
         public SimpleShared(SimpleComponent[][] array){
             super(array);
-//            this.comp = array;
         }
         @Override
         protected SimpleComponent get(int y, int x){
@@ -195,12 +160,12 @@ public class RosenfeldPfaltz {
         public RowMarker(SimpleShared shared,int rowIndex,RowMarker dependency){
             super(shared,rowIndex);
             this.topRow = dependency;
-            this.row = new LinkedBlockingDeque<>(shared.length());
+            this.row = new LinkedBlockingDeque<>(shared.length()+1);
         }
         
         @Override
         public Object call() throws Exception {
-            Log.print("Started "+rowIndex);
+//            Log.print("Started "+rowIndex);
             int size = shared.length();
             if(rowIndex == 0){//I AM FIRST
                 SimpleComponent temp = shared.get(0, 0);
@@ -227,6 +192,7 @@ public class RosenfeldPfaltz {
                 row.putLast(get);
                 SimpleComponent left;
                 for(int i=1;i<size;i++){
+//                    Log.print(i);
                     get = shared.get(rowIndex, i);
                     left = shared.get(rowIndex, i-1);
                     top = topRow.row.takeFirst();
@@ -248,38 +214,7 @@ public class RosenfeldPfaltz {
                                 max = top.intLabel;
                             }
                             get.intLabel = min;
-                            
-                            UFNode parent = getOrCreate(min);
-                            UFNode child = getOrCreate(max);
-                            Log.print("C: "+child.debugPrint(10));
-                            Log.print("P: "+parent.debugPrint(10));
-                            if(child.parent!= null && child.parent.id != parent.id){
-                                
-                                Log.print("REPARENTED " + child.id + ": "+ child.parent.id+" to " + parent.id);
-                                
-//                                UFNode lastParent = child.getLastParent();
-//                                if(lastParent.id != parent.id){
-//                                    lastParent.parent = parent;
-//                                }
-                                boolean ok = !parent.contains(child.id);
-                                UFNode current = child;
-                                while(current.parent!=null){
-                                    current = current.parent;
-                                    if(current.id == parent.id){
-                                        ok = false;
-                                        break;
-                                    }
-                                }
-                                if(ok){
-                                    current.parent = parent;
-                                }
-//                            child.parent = parent;      
-                            
-                            }else if (!parent.contains(child.id)){
-                                child.parent = parent;
-                            }
-                            Log.print(child.debugPrint(10));                                
-
+                            unionRequest(min,max);
                             
                         }else {
                             get.intLabel = top.intLabel;
@@ -291,7 +226,7 @@ public class RosenfeldPfaltz {
                 }
             }
 //            Log.print(this.row.toString());
-            Log.print("Finished "+rowIndex);
+//            Log.print("Finished "+rowIndex);
             return null;
         }
         
@@ -309,9 +244,9 @@ public class RosenfeldPfaltz {
         public Object call() throws Exception {
             int size = shared.length();
             for(int i=0; i<size; i++){
+                
                 SimpleComponent get = shared.get(rowIndex, i);
-                get.intLabel = lookUpCache(get.intLabel);
-                get.label = ""+get.intLabel;
+                lookUpCache(get);
             }
             return null;
         }
@@ -339,7 +274,8 @@ public class RosenfeldPfaltz {
                 line = "";
             }
         };
-        ExecutorService exe = Executors.newFixedThreadPool(1);
+        ExecutorService exe = Executors.newFixedThreadPool(threadCount);
+        unionService = Executors.newSingleThreadExecutor();
         int width = shared.width();
         ArrayList<RowRemarker> workers = new ArrayList<>(width);
         RowMarker marker = new RowMarker(shared,0,null);
@@ -350,22 +286,24 @@ public class RosenfeldPfaltz {
             workers.add(next);
         }
         for(Callable cal:workers){
-            cal.call();
+            exe.submit(cal);
+//            cal.call();
         }
         exe.shutdown();
         exe.awaitTermination(1, TimeUnit.DAYS);
-//        tableFunction(shared.comp,printIntLabel);
         Log.print();
-        exe = Executors.newFixedThreadPool(1);
+        exe = Executors.newFixedThreadPool(threadCount);
         for(int i=0; i<width; i++){
             RowRemarker remarker = new RowRemarker(shared,i);
             exe.submit(remarker);
         }
         exe.shutdown();
         exe.awaitTermination(1, TimeUnit.DAYS);
-        for(UFNode node:nodes.values()){
+        unionService.shutdown();
+        unionService.awaitTermination(1, TimeUnit.DAYS);
+//        for(UFNode node:nodes.values()){
 //            Log.print(node);
-        }
+//        }
 //                tableFunction(shared.comp,printIntLabel);
 
     }
