@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -108,6 +107,7 @@ public class UnionFind<T> {
     private UnionFindNode<T> find(UnionFindNode<T> target){
         if(target != target.parent)
             target.parent = find(target.parent);
+//            return find(target.parent);
         return target.parent;
     }
     /**
@@ -129,7 +129,7 @@ public class UnionFind<T> {
         }
     }
     /**
-     * Internal method to perform <tt>union</tt> operaion by calling <tt>link</tt>
+     * Internal method to perform <tt>union</tt> operation by calling <tt>link</tt>
      * function on the representative nodes of the two given node.
      * @param x Node 1
      * @param y Node 2

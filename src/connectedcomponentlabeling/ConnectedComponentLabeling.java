@@ -232,7 +232,7 @@ public class ConnectedComponentLabeling {
 //        pic = "img.bmp";
 //        pic = "stripes.bmp";
 //        pic = "bars.bmp";
-//        pic = "spiral.bmp";
+        pic = "spiral.bmp";
 //        pic = "stairs.bmp";
 //        pic = "stairs2.bmp";
         Log.changeStream('f', home+"res.txt");

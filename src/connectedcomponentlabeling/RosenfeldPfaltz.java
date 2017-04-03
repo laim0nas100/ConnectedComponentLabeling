@@ -12,6 +12,7 @@ import connectedcomponentlabeling.OptimizedAPI.MiniShared;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Lemmin
  */
 public class RosenfeldPfaltz {
+    public static AtomicInteger findCount = new AtomicInteger(0);
     public static int threadCount = 1;
     public static SimpleComponent[][] fromPixelArraySimple(Integer[][] pixels){
         int width = pixels.length;
@@ -36,55 +38,10 @@ public class RosenfeldPfaltz {
         } 
         return array;
     }
-    public static class UFNode{
-        public int id;
-        public UFNode parent;
-        public UFNode(int i){
-            this.id = i;
-        }
-        @Override
-        public String toString(){
-            String str = ""+id;
-            if(parent != null){
-                str += " -> "+parent.toString();
-            }
-            return str;
-        }
-        public String debugPrint(int maxIterations){
-            String str = ""+id;
-            if(parent != null && maxIterations>0){
-                str += " -> "+parent.debugPrint(maxIterations-1);
-            }
-            return str;
-        }
-        public UFNode getLastParent(){
-            UFNode current = this;
-            while(current.parent!=null){
-                current = current.parent;
-            }
-            return current;
-        }
-        
-        public boolean contains(int id){
-            UFNode current = this;
-            if(this.id == id){
-                return true;
-            }
-            while(current.parent!=null){
-                
-                current = current.parent;
-                if(id == current.id){
-                    return true;
-                }
-            }
-            return id == current.id;
-        }
-    }
-    
-    public static HashMap<Integer,UFNode> nodes = new HashMap<>();
     public static HashMap<Integer,Integer> lookUpCache = new HashMap<>();
     public static UnionFind uf = new UnionFind();
     public static AtomicInteger currentLabel = new AtomicInteger(1);
+    public static ExecutorService exe;
     public static ExecutorService unionService;// = Executors.newSingleThreadExecutor();
     public static void unionRequest(int min, int max){
         if(!uf.map.containsKey(min)){
@@ -109,16 +66,10 @@ public class RosenfeldPfaltz {
             if(!uf.map.containsKey(id)){
                 comp.label = id+"";
             }else{
-                Runnable run = new Runnable(){
-                    @Override
-                    public void run() {
-                        int find = (int) uf.find(id);
-                        lookUpCache.put(id, find);
-                        comp.label = find+"";
-                    }
-                    
-                };
-                unionService.submit(run);
+                int find = (int) uf.find(id);
+                lookUpCache.put(id, find);
+                comp.label = find+"";
+                findCount.incrementAndGet();
             }
         }
         
@@ -227,6 +178,7 @@ public class RosenfeldPfaltz {
             }
 //            Log.print(this.row.toString());
 //            Log.print("Finished "+rowIndex);
+            latch.countDown();
             return null;
         }
         
@@ -235,7 +187,7 @@ public class RosenfeldPfaltz {
     public static class RowRemarker implements Callable{
         public int rowIndex;
         public SimpleShared shared;
-
+        public CountDownLatch latch;
         public RowRemarker(SimpleShared shared,int rowIndex){
             this.rowIndex = rowIndex;
             this.shared = shared;
@@ -248,6 +200,7 @@ public class RosenfeldPfaltz {
                 SimpleComponent get = shared.get(rowIndex, i);
                 lookUpCache(get);
             }
+            latch.countDown();
             return null;
         }
         
@@ -264,8 +217,7 @@ public class RosenfeldPfaltz {
                 while(app.length()<maxWidth){
                     app+=" ";
                 }
-                line += app;
-                
+                line += app;               
             }
 
             @Override
@@ -274,7 +226,7 @@ public class RosenfeldPfaltz {
                 line = "";
             }
         };
-        ExecutorService exe = Executors.newFixedThreadPool(threadCount);
+        exe = Executors.newFixedThreadPool(threadCount);
         unionService = Executors.newSingleThreadExecutor();
         int width = shared.width();
         ArrayList<RowRemarker> workers = new ArrayList<>(width);
@@ -285,22 +237,25 @@ public class RosenfeldPfaltz {
             marker = next;
             workers.add(next);
         }
-        for(Callable cal:workers){
+        CountDownLatch latch = new CountDownLatch(width);
+
+        for(RowRemarker cal:workers){
+            cal.latch = latch;
             exe.submit(cal);
-//            cal.call();
         }
-        exe.shutdown();
-        exe.awaitTermination(1, TimeUnit.DAYS);
+        latch.await();
         Log.print();
-        exe = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch2 = new CountDownLatch(width);
         for(int i=0; i<width; i++){
             RowRemarker remarker = new RowRemarker(shared,i);
+            remarker.latch = latch2;
             exe.submit(remarker);
         }
+        latch2.await();
         exe.shutdown();
-        exe.awaitTermination(1, TimeUnit.DAYS);
         unionService.shutdown();
         unionService.awaitTermination(1, TimeUnit.DAYS);
+        Log.print(findCount.get());
 //        for(UFNode node:nodes.values()){
 //            Log.print(node);
 //        }
